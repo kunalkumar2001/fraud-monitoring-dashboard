@@ -82,10 +82,14 @@ st.line_chart(
 
 # ---------------- TABLE STYLING ----------------
 def highlight_fraud(row):
-    return [
-        "background-color: #ffcccc" if row["status"] == "FRAUD" else ""
-        for _ in row
-    ]
+    styles = []
+    for col in row.index:
+        if col == "status" and row["status"] == "FRAUD":
+            styles.append("background-color: #ff4d4d; color: white; font-weight: bold;")
+        else:
+            styles.append("")
+    return styles
+
 
 # ---------------- LATEST TRANSACTIONS ----------------
 st.subheader("🧾 Latest Transactions (Last 5,000 Records)")
