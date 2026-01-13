@@ -10,11 +10,18 @@ st.set_page_config(
 )
 
 # ---------------- AUTO REFRESH (EVERY 60s) ----------------
-st.query_params["refresh"] = str(int(datetime.now().timestamp()))
-st.markdown(
-    "<meta http-equiv='refresh' content='60'>",
-    unsafe_allow_html=True
-)
+try:
+    from streamlit_autorefresh import st_autorefresh
+
+    # Use the helper if the package is installed
+    st_autorefresh(interval=60_000, key="fraud_refresh")
+except Exception:
+    # Fallback: use a small client-side reload every 60s
+    st.markdown(
+        "<script>setTimeout(()=>{window.location.reload();},60000);</script>",
+        unsafe_allow_html=True,
+    )
+
 
 # ---------------- FASTAPI CONFIG ----------------
 FASTAPI_URL = "https://fraud-realtime-api.onrender.com/latest"
