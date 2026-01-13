@@ -9,100 +9,115 @@ st.set_page_config(
     layout="wide"
 )
 
-# ---------------- SAFE REAL-TIME REFRESH (3s) ----------------
+# ---------------- AUTO REFRESH (EVERY 60s) ----------------
 st.query_params["refresh"] = str(int(datetime.now().timestamp()))
 st.markdown(
-    "<meta http-equiv='refresh' content='3'>",
+    "<meta http-equiv='refresh' content='60'>",
     unsafe_allow_html=True
 )
 
 # ---------------- FASTAPI CONFIG ----------------
-# ⚠️ Change if deployed to cloud
 FASTAPI_URL = "https://fraud-realtime-api.onrender.com/latest"
 
-# ---------------- LOAD DATA FROM FASTAPI ----------------
-@st.cache_data(ttl=3)
-def load_data():
-    try:
-        response = requests.get(FASTAPI_URL, timeout=5)
-        response.raise_for_status()
-        return pd.DataFrame(response.json())
-    except Exception as e:
-        st.error("🚨 Unable to fetch live data from API")
-        st.warning("Check FastAPI deployment or database connection")
-        st.stop()
+# ---------------- SESSION STATE INIT ----------------
+if "offset" not in st.session_state:
+    st.session_state.offset = 0          # how many rows already loaded
 
+if "df_all" not in st.session_state:
+    st.session_state.df_all = pd.DataFrame()  # stores ALL loaded data
 
-df = load_data()
+# ---------------- LOAD NEXT CHUNK (5000 ROWS) ----------------
+@st.cache_data(ttl=60)
+def load_chunk(offset):
+    response = requests.get(
+        FASTAPI_URL,
+        params={"offset": offset, "limit": 5000},
+        timeout=15
+    )
+    response.raise_for_status()
+    return pd.DataFrame(response.json())
+
+# ---------------- FETCH → APPEND → MOVE OFFSET ----------------
+try:
+    df_new = load_chunk(st.session_state.offset)
+
+    if not df_new.empty:
+        st.session_state.df_all = pd.concat(
+            [st.session_state.df_all, df_new],
+            ignore_index=True
+        )
+        st.session_state.offset += len(df_new)
+
+except Exception:
+    st.error("🚨 Unable to fetch live data from API")
+    st.stop()
+
+df_all = st.session_state.df_all
+
+# ---------------- DISPLAY WINDOW (FAST UI) ----------------
+DISPLAY_ROWS = 1000
+df_display = df_all.tail(DISPLAY_ROWS)
 
 # ---------------- HEADER ----------------
 st.title("🚨 Live Fraud Monitoring Dashboard")
-st.caption("True real-time | FastAPI + PostgreSQL + Streamlit")
+st.caption("Loads 5,000 rows every 60s | Rolling window display")
 
 # ---------------- KPI METRICS ----------------
-total_txn = len(df)
-fraud_txn = (df["status"] == "FRAUD").sum()
-avg_score = round(df["fraud_score"].mean(), 3)
-
 c1, c2, c3 = st.columns(3)
-c1.metric("Total Transactions", total_txn)
-c2.metric("Fraud Transactions", fraud_txn)
-c3.metric("Avg Fraud Score", avg_score)
+c1.metric("Total Loaded Rows", len(df_all))
+c2.metric("Displayed Rows", len(df_display))
+c3.metric("Fraud Count", (df_all["status"] == "FRAUD").sum())
 
 st.divider()
 
-# ---------------- 🚨 REAL-TIME FRAUD ALERT ----------------
-if fraud_txn > 0:
-    st.error(
-        f"🚨 LIVE ALERT: {fraud_txn} FRAUD transaction(s) detected!",
-        icon="🚨"
-    )
+# ---------------- 🚨 LIVE FRAUD ALERT ----------------
+if not df_display.empty and (df_display["status"] == "FRAUD").any():
+    st.error("🚨 FRAUD DETECTED IN RECENT TRANSACTIONS!", icon="🚨")
 else:
-    st.success("✅ No fraud detected. System is SAFE.")
+    st.success("✅ No fraud in recent transactions")
 
-# ---------------- 📈 FRAUD SCORE TREND ----------------
-st.subheader("📈 Fraud Score Trend (All Transactions)")
+# ---------------- 📈 FRAUD SCORE TREND (ROLLING WINDOW) ----------------
+st.subheader("📈 Fraud Score Trend (Last 1,000 Records)")
 
-df_sorted = df.sort_values("event_time")
-st.line_chart(
-    df_sorted.set_index("event_time")["fraud_score"]
-)
+if not df_display.empty:
+    st.line_chart(
+        df_display.sort_values("event_time")
+                  .set_index("event_time")["fraud_score"]
+    )
 
-# ---------------- 🧾 LATEST TRANSACTIONS ----------------
-st.subheader("🧾 Latest Transactions (Live)")
-
-rows_to_show = st.slider(
-    "Select number of recent transactions",
-    min_value=10,
-    max_value=min(5000, len(df)),
-    value=min(200, len(df)),
-    step=50
-)
-
+# ---------------- TABLE STYLING ----------------
 def highlight_fraud(row):
     return [
         "background-color: #ffcccc" if row["status"] == "FRAUD" else ""
         for _ in row
     ]
 
-styled_latest = (
-    df.head(rows_to_show)
-    .style
-    .apply(highlight_fraud, axis=1)
-)
+# ---------------- LATEST TRANSACTIONS ----------------
+st.subheader("🧾 Latest Transactions (Rolling Window)")
 
-st.dataframe(styled_latest, width="stretch")
+if not df_display.empty:
+    st.dataframe(
+        df_display.style.apply(highlight_fraud, axis=1),
+        width="stretch"
+    )
+else:
+    st.info("No data loaded yet.")
 
-# ---------------- 🔴 FRAUD TRANSACTIONS ONLY ----------------
-st.subheader("🔴 Fraud Transactions (Live)")
+# ---------------- ALL FRAUD TRANSACTIONS ----------------
+st.subheader("🔴 All Fraud Transactions (Loaded So Far)")
 
-fraud_df = df[df["status"] == "FRAUD"]
+fraud_df = df_all[df_all["status"] == "FRAUD"]
 
 if not fraud_df.empty:
-    styled_fraud = fraud_df.style.apply(highlight_fraud, axis=1)
-    st.dataframe(styled_fraud, width="stretch")
+    st.dataframe(
+        fraud_df.style.apply(highlight_fraud, axis=1),
+        width="stretch"
+    )
 else:
-    st.info("No fraud transactions detected.")
+    st.info("No fraud transactions detected yet.")
 
 # ---------------- FOOTER ----------------
-st.caption("⚡ True real-time monitoring via FastAPI | Updates every 3 seconds")
+st.caption(
+    "⚡ Incremental loading: 5,000 rows / minute | "
+    "UI shows latest 1,000 rows for performance"
+)
