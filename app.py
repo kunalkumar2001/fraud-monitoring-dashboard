@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
-from sqlalchemy import create_engine
-from urllib.parse import quote_plus
+import requests
 from datetime import datetime
 
 # ---------------- PAGE CONFIG ----------------
@@ -10,41 +9,29 @@ st.set_page_config(
     layout="wide"
 )
 
-# ---------------- AUTO REFRESH (EVERY 60s) ----------------
-# 🔄 SAFE near real-time refresh (5 seconds)
+# ---------------- SAFE REAL-TIME REFRESH (3s) ----------------
 st.query_params["refresh"] = str(int(datetime.now().timestamp()))
 st.markdown(
-    "<meta http-equiv='refresh' content='5'>",
+    "<meta http-equiv='refresh' content='3'>",
     unsafe_allow_html=True
 )
 
+# ---------------- FASTAPI CONFIG ----------------
+# ⚠️ Change if deployed to cloud
+FASTAPI_URL = "https://fraud-realtime-api.onrender.com/"
 
-# ---------------- DB CONFIG ----------------
-NEON_HOST = "ep-rapid-truth-a1jtm7e5.ap-southeast-1.aws.neon.tech"
-NEON_DB = "neondb"
-NEON_USER = "neondb_owner"
-NEON_PASSWORD = quote_plus(st.secrets["NEON_PASSWORD"])
-
-engine = create_engine(
-    f"postgresql+psycopg2://{NEON_USER}:{NEON_PASSWORD}"
-    f"@{NEON_HOST}:5432/{NEON_DB}?sslmode=require"
-)
-
-# ---------------- LOAD ALL DATA ----------------
-@st.cache_data(ttl=60)
+# ---------------- LOAD DATA FROM FASTAPI ----------------
+@st.cache_data(ttl=3)
 def load_data():
-    query = """
-    SELECT *
-    FROM fraud_monitor_logs
-    ORDER BY event_time DESC;
-    """
-    return pd.read_sql(query, engine)
+    response = requests.get(FASTAPI_URL, timeout=5)
+    response.raise_for_status()
+    return pd.DataFrame(response.json())
 
 df = load_data()
 
 # ---------------- HEADER ----------------
 st.title("🚨 Live Fraud Monitoring Dashboard")
-st.caption("Auto-refresh every 60 seconds | Live Neon PostgreSQL")
+st.caption("True real-time | FastAPI + PostgreSQL + Streamlit")
 
 # ---------------- KPI METRICS ----------------
 total_txn = len(df)
@@ -58,10 +45,10 @@ c3.metric("Avg Fraud Score", avg_score)
 
 st.divider()
 
-# ---------------- 🚨 RED FRAUD ALERT ----------------
+# ---------------- 🚨 REAL-TIME FRAUD ALERT ----------------
 if fraud_txn > 0:
     st.error(
-        f"🚨 ALERT: {fraud_txn} FRAUD transaction(s) detected!",
+        f"🚨 LIVE ALERT: {fraud_txn} FRAUD transaction(s) detected!",
         icon="🚨"
     )
 else:
@@ -71,13 +58,15 @@ else:
 st.subheader("📈 Fraud Score Trend (All Transactions)")
 
 df_sorted = df.sort_values("event_time")
-st.line_chart(df_sorted.set_index("event_time")["fraud_score"])
+st.line_chart(
+    df_sorted.set_index("event_time")["fraud_score"]
+)
 
 # ---------------- 🧾 LATEST TRANSACTIONS ----------------
-st.subheader("🧾 Latest Transactions (All Data)")
+st.subheader("🧾 Latest Transactions (Live)")
 
 rows_to_show = st.slider(
-    "Select number of recent transactions to view",
+    "Select number of recent transactions",
     min_value=10,
     max_value=min(5000, len(df)),
     value=min(200, len(df)),
@@ -85,7 +74,10 @@ rows_to_show = st.slider(
 )
 
 def highlight_fraud(row):
-    return ["background-color: #ffcccc" if row["status"] == "FRAUD" else "" for _ in row]
+    return [
+        "background-color: #ffcccc" if row["status"] == "FRAUD" else ""
+        for _ in row
+    ]
 
 styled_latest = (
     df.head(rows_to_show)
@@ -95,16 +87,16 @@ styled_latest = (
 
 st.dataframe(styled_latest, width="stretch")
 
-# ---------------- 🔴 FRAUD TRANSACTIONS ----------------
-st.subheader("🔴 Fraud Transactions (All)")
+# ---------------- 🔴 FRAUD TRANSACTIONS ONLY ----------------
+st.subheader("🔴 Fraud Transactions (Live)")
 
 fraud_df = df[df["status"] == "FRAUD"]
 
-if len(fraud_df) > 0:
+if not fraud_df.empty:
     styled_fraud = fraud_df.style.apply(highlight_fraud, axis=1)
     st.dataframe(styled_fraud, width="stretch")
 else:
     st.info("No fraud transactions detected.")
 
 # ---------------- FOOTER ----------------
-st.caption("🔄 Dashboard auto-refreshes every 60 seconds | Live Monitoring Enabled")
+st.caption("⚡ True real-time monitoring via FastAPI | Updates every 3 seconds")
