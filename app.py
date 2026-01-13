@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import requests
 from datetime import datetime
+from streamlit_autorefresh import st_autorefresh
 
 # ---------------- PAGE CONFIG ----------------
 st.set_page_config(
@@ -10,17 +11,11 @@ st.set_page_config(
 )
 
 # ---------------- AUTO REFRESH (EVERY 60s) ----------------
-try:
-    from streamlit_autorefresh import st_autorefresh
+from streamlit.runtime.scriptrunner import add_script_run_ctx
 
-    # Use the helper if the package is installed
-    st_autorefresh(interval=60_000, key="fraud_refresh")
-except Exception:
-    # Fallback: use a small client-side reload every 60s
-    st.markdown(
-        "<script>setTimeout(()=>{window.location.reload();},60000);</script>",
-        unsafe_allow_html=True,
-    )
+# 🔄 STATE-SAFE AUTO REFRESH (60 seconds)
+st_autorefresh(interval=60_000, key="fraud_refresh")
+
 
 
 # ---------------- FASTAPI CONFIG ----------------
