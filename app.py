@@ -18,14 +18,20 @@ st.markdown(
 
 # ---------------- FASTAPI CONFIG ----------------
 # ⚠️ Change if deployed to cloud
-FASTAPI_URL = "https://fraud-realtime-api.onrender.com/"
+FASTAPI_URL = "https://fraud-realtime-api.onrender.com/latest"
 
 # ---------------- LOAD DATA FROM FASTAPI ----------------
 @st.cache_data(ttl=3)
 def load_data():
-    response = requests.get(FASTAPI_URL, timeout=5)
-    response.raise_for_status()
-    return pd.DataFrame(response.json())
+    try:
+        response = requests.get(FASTAPI_URL, timeout=5)
+        response.raise_for_status()
+        return pd.DataFrame(response.json())
+    except Exception as e:
+        st.error("🚨 Unable to fetch live data from API")
+        st.warning("Check FastAPI deployment or database connection")
+        st.stop()
+
 
 df = load_data()
 
