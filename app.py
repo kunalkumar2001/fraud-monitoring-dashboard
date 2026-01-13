@@ -11,11 +11,13 @@ st.set_page_config(
 )
 
 # ---------------- AUTO REFRESH (EVERY 60s) ----------------
+# 🔄 SAFE near real-time refresh (5 seconds)
 st.query_params["refresh"] = str(int(datetime.now().timestamp()))
 st.markdown(
-    "<meta http-equiv='refresh' content='60'>",
+    "<meta http-equiv='refresh' content='5'>",
     unsafe_allow_html=True
 )
+
 
 # ---------------- DB CONFIG ----------------
 NEON_HOST = "ep-rapid-truth-a1jtm7e5.ap-southeast-1.aws.neon.tech"
