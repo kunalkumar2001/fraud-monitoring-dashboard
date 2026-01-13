@@ -10,26 +10,20 @@ st.set_page_config(
     layout="wide"
 )
 
-# ---------------- AUTO REFRESH (EVERY 60s) ----------------
-from streamlit.runtime.scriptrunner import add_script_run_ctx
-
-# 🔄 STATE-SAFE AUTO REFRESH (60 seconds)
+# ---------------- STATE-SAFE AUTO REFRESH (60s) ----------------
 st_autorefresh(interval=60_000, key="fraud_refresh")
-
-
 
 # ---------------- FASTAPI CONFIG ----------------
 FASTAPI_URL = "https://fraud-realtime-api.onrender.com/latest"
 
 # ---------------- SESSION STATE INIT ----------------
 if "offset" not in st.session_state:
-    st.session_state.offset = 0          # how many rows already loaded
+    st.session_state.offset = 0
 
 if "df_all" not in st.session_state:
-    st.session_state.df_all = pd.DataFrame()  # stores ALL loaded data
+    st.session_state.df_all = pd.DataFrame()
 
 # ---------------- LOAD NEXT CHUNK (5000 ROWS) ----------------
-@st.cache_data(ttl=60)
 def load_chunk(offset):
     response = requests.get(
         FASTAPI_URL,
@@ -50,19 +44,19 @@ try:
         )
         st.session_state.offset += len(df_new)
 
-except Exception:
+except Exception as e:
     st.error("🚨 Unable to fetch live data from API")
     st.stop()
 
 df_all = st.session_state.df_all
 
-# ---------------- DISPLAY WINDOW (FAST UI) ----------------
-DISPLAY_ROWS = 1000
+# ---------------- DISPLAY WINDOW ----------------
+DISPLAY_ROWS = 5000
 df_display = df_all.tail(DISPLAY_ROWS)
 
 # ---------------- HEADER ----------------
 st.title("🚨 Live Fraud Monitoring Dashboard")
-st.caption("Loads 5,000 rows every 60s | Rolling window display")
+st.caption("Loads 5,000 rows every 60 seconds | Rolling window display")
 
 # ---------------- KPI METRICS ----------------
 c1, c2, c3 = st.columns(3)
@@ -78,14 +72,13 @@ if not df_display.empty and (df_display["status"] == "FRAUD").any():
 else:
     st.success("✅ No fraud in recent transactions")
 
-# ---------------- 📈 FRAUD SCORE TREND (ROLLING WINDOW) ----------------
-st.subheader("📈 Fraud Score Trend (Last 1,000 Records)")
+# ---------------- 📈 FRAUD SCORE TREND ----------------
+st.subheader("📈 Fraud Score Trend (Last 5,000 Records)")
 
-if not df_display.empty:
-    st.line_chart(
-        df_display.sort_values("event_time")
-                  .set_index("event_time")["fraud_score"]
-    )
+st.line_chart(
+    df_display.sort_values("event_time")
+              .set_index("event_time")["fraud_score"]
+)
 
 # ---------------- TABLE STYLING ----------------
 def highlight_fraud(row):
@@ -95,15 +88,12 @@ def highlight_fraud(row):
     ]
 
 # ---------------- LATEST TRANSACTIONS ----------------
-st.subheader("🧾 Latest Transactions (Rolling Window)")
+st.subheader("🧾 Latest Transactions (Last 5,000 Records)")
 
-if not df_display.empty:
-    st.dataframe(
-        df_display.style.apply(highlight_fraud, axis=1),
-        width="stretch"
-    )
-else:
-    st.info("No data loaded yet.")
+st.dataframe(
+    df_display.style.apply(highlight_fraud, axis=1),
+    width="stretch"
+)
 
 # ---------------- ALL FRAUD TRANSACTIONS ----------------
 st.subheader("🔴 All Fraud Transactions (Loaded So Far)")
@@ -120,6 +110,6 @@ else:
 
 # ---------------- FOOTER ----------------
 st.caption(
-    "⚡ Incremental loading: 5,000 rows / minute | "
-    "UI shows latest 1,000 rows for performance"
+    "⚡ Incremental loading: 5,000 rows per minute | "
+    "UI shows latest 5,000 rows for performance"
 )
