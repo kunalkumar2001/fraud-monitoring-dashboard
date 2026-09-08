@@ -1,5 +1,8 @@
 # 🚨 Fraud Monitoring Dashboard
 
+### 🔗 Live Demo
+[fraud-monitoring-dashboard-7azntmdythrx7bs6ixsa8f.streamlit.app](https://fraud-monitoring-dashboard-7azntmdythrx7bs6ixsa8f.streamlit.app/)
+
 ## 📖 Problem Statement
 Detect and monitor fraudulent transactions in real-time to reduce financial risk.
 
@@ -27,7 +30,7 @@ To identify suspicious transactions and visualize fraud patterns.
 - Certain time windows show more fraud  
 
 ## 🚀 Results
-Created an interactive dashboard highlighting fraud transactions in real-time.
+Created an interactive dashboard highlighting fraud transactions in real-time. Try it live here: **[Live Dashboard](https://fraud-monitoring-dashboard-7azntmdythrx7bs6ixsa8f.streamlit.app/)**
 
 ## 📌 Conclusion
 This system helps organizations quickly detect and act on fraud cases.
