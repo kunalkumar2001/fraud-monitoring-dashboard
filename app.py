@@ -151,8 +151,25 @@ CITY_COORDS = {
     "Chicago": (41.88, -87.63), "Houston": (29.76, -95.37),
     "Phoenix": (33.45, -112.07), "Philadelphia": (39.95, -75.16),
     "San Antonio": (29.42, -98.49), "San Diego": (32.72, -117.16),
-    "San Jose": (37.34, -121.89),
+    "San Jose": (37.34, -121.89), "Dallas": (32.78, -96.80),
+    "Austin": (30.27, -97.74), "Jacksonville": (30.33, -81.66),
+    "Fort Worth": (32.75, -97.33), "Columbus": (39.96, -83.00),
+    "Charlotte": (35.23, -80.84), "San Francisco": (37.77, -122.42),
+    "Indianapolis": (39.77, -86.16), "Seattle": (47.61, -122.33),
+    "Denver": (39.74, -104.99), "Boston": (42.36, -71.06),
+    "Nashville": (36.16, -86.78), "Detroit": (42.33, -83.05),
+    "Portland": (45.52, -122.68), "Memphis": (35.15, -90.05),
+    "Las Vegas": (36.17, -115.14), "Baltimore": (39.29, -76.61),
+    "Milwaukee": (43.04, -87.91), "Atlanta": (33.75, -84.39),
+    "Miami": (25.76, -80.19),
 }
+
+# Priority columns shown first in every table — status/fraud_score are the
+# whole point of this dashboard, so they should never be scrolled out of view.
+PRIORITY_COLS = ["transaction_id", "status", "fraud_score", "amount",
+                  "transaction_type", "location"]
+
+PLOTLY_CONFIG = {"displayModeBar": False}
 
 # ============================================================
 # SESSION STATE
@@ -306,7 +323,7 @@ with col_left:
             xaxis=dict(gridcolor=BORDER, showgrid=False),
             yaxis=dict(gridcolor=BORDER, range=[0, 1]),
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CONFIG)
     else:
         st.info("Waiting for data...")
 
@@ -325,7 +342,7 @@ with col_right:
         annotations=[dict(text=f"{fraud_rate:.1f}%", x=0.5, y=0.5,
                            font_size=26, font_color=ACCENT_ALERT, showarrow=False)],
     )
-    st.plotly_chart(fig_donut, use_container_width=True)
+    st.plotly_chart(fig_donut, use_container_width=True, config=PLOTLY_CONFIG)
 
 # ============================================================
 # FRAUD BY CITY
@@ -339,7 +356,11 @@ if not df_all.empty and "location" in df_all.columns:
     city_fraud.columns = ["location", "fraud_count"]
     city_fraud["lat"] = city_fraud["location"].map(lambda c: CITY_COORDS.get(c, (None, None))[0])
     city_fraud["lon"] = city_fraud["location"].map(lambda c: CITY_COORDS.get(c, (None, None))[1])
+    unmapped = sorted(set(city_fraud.loc[city_fraud["lat"].isna(), "location"]))
     city_fraud = city_fraud.dropna(subset=["lat", "lon"])
+
+    if unmapped:
+        st.caption(f"No coordinates on file yet for: {', '.join(unmapped)} — add them to CITY_COORDS.")
 
     if not city_fraud.empty:
         fig_map = go.Figure(go.Scattergeo(
@@ -359,7 +380,7 @@ if not df_all.empty and "location" in df_all.columns:
             paper_bgcolor="rgba(0,0,0,0)", height=360,
             margin=dict(l=0, r=0, t=0, b=0),
         )
-        st.plotly_chart(fig_map, use_container_width=True)
+        st.plotly_chart(fig_map, use_container_width=True, config=PLOTLY_CONFIG)
     else:
         st.caption("No mappable city coordinates yet.")
 
@@ -369,7 +390,11 @@ if not df_all.empty and "location" in df_all.columns:
 def status_display(df):
     df = df.copy()
     df["status"] = df["status"].map(lambda s: "🔴 FRAUD" if s == "FRAUD" else "🟢 SAFE")
-    return df
+    # Put the columns people actually scan first (status/fraud_score), so
+    # they're visible without scrolling right on a normal-width screen.
+    front = [c for c in PRIORITY_COLS if c in df.columns]
+    rest = [c for c in df.columns if c not in front]
+    return df[front + rest]
 
 col_cfg = {
     "fraud_score": st.column_config.ProgressColumn(
