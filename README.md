@@ -1,8 +1,5 @@
 # 🚨 Fraud Monitoring Dashboard
 
-### 🔗 Live Demo
-[fraud-monitoring-dashboard-7azntmdythrx7bs6ixsa8f.streamlit.app](https://fraud-monitoring-dashboard-7azntmdythrx7bs6ixsa8f.streamlit.app/)
-
 ## 📖 Problem Statement
 Detect and monitor fraudulent transactions in real-time to reduce financial risk.
 
